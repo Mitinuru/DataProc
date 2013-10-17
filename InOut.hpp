@@ -1,0 +1,239 @@
+#ifndef IO_HPP
+#define IO_HPP
+#include <rw/rw.hpp>
+
+#include <fstream>
+#include <vector>
+#include <string>
+#include <sstream>
+
+#include <rw/math/Transform3D.hpp>
+#include <rw/math/Q.hpp>
+
+using namespace std;
+using namespace rw::math;
+
+//******************************** Kinds of info *************************//
+
+class contact_pnts {
+
+	// object ids
+	int id1;
+	int id2;
+	
+public:
+	contact_pnts();
+	contact_pnts(int _id1, int _id2);
+	void PrintContPnts();
+	friend ostream& operator<<(ostream& os, const contact_pnts& contact_pnts); 
+	
+};
+
+class coordin {
+
+	// object id
+	int id;
+	//objects in local cartezian xyz with respect to end-effector coordinates
+	Vector3D<> XYZ_loc;  
+	//objects in local rpy with respect to end-effector coordinates
+	RPY<> RPY_loc;
+	// objects in global cartezian xyz  coordinates
+	Vector3D<> XYZ_glob;  
+	// objects in global rpy  coordinates
+	RPY<> RPY_glob;
+	
+public:
+	//Constructor
+	coordin();
+	coordin(int _id,  Vector3D<> _XYZ_loc, RPY<> _RPY_loc, Vector3D<> _XYZ_glob, RPY<> _RPY_glob); 
+	void PrintCoordin();
+	friend ostream& operator<<(ostream& os, const coordin& coordin); 
+	
+};
+
+class coordin_simple {
+
+	// object id
+	int id;
+	//cartezian coordinates loc/glob
+	Vector3D<> XYZ;  
+	//rpy coordinates loc/glob 
+	RPY<> RPY1;
+	
+public:
+	//Constructor
+	coordin_simple();
+	coordin_simple(int _id,  Vector3D<> _XYZ, RPY<> _RPY); 
+	void PrintCoordin_simple();
+	friend ostream& operator<<(ostream& os, const coordin_simple& coordin); 
+	
+};
+
+//******************************** Paces *************************//
+
+class Pace_coord {
+
+	//time
+	double time;
+	//objects coordinates
+	vector< coordin_simple > objectCoord;
+	
+	
+public:
+	typedef rw::common::Ptr<Pace_coord> Ptr;
+	//Constructor
+	Pace_coord();
+	Pace_coord(double _time, vector< coordin_simple > _objectCoord);
+	void printPace_coord();
+	
+	friend ostream& operator<<(ostream& os, const Pace_coord& pace_new); 
+};
+
+class Pace_z {
+
+	//time
+	double time;
+	//objects coordinates
+	vector< coordin_simple > objectCoord;
+	//z orientation of manipulated object
+	Vector3D<> zAxis;
+	
+	
+public:
+	typedef rw::common::Ptr<Pace_z> Ptr;
+	//Constructor
+	Pace_z();
+	Pace_z(double _time, vector< coordin_simple > _objectCoord, Vector3D<> _zAxis);
+	void printPace_z();
+	
+	friend ostream& operator<<(ostream& os, const Pace_z& pace_new); 
+};
+
+class Pace_cnct {
+
+	//time
+	double time;
+	//contact points
+	vector< contact_pnts > contact_points;
+	
+	
+public:
+	typedef rw::common::Ptr<Pace_cnct> Ptr;
+	//Constructor
+	Pace_cnct();
+	Pace_cnct(double _time, vector< contact_pnts > _contact_points);
+	void printPace_cnct();
+	
+	friend ostream& operator<<(ostream& os, const Pace_cnct& pace_new); 
+};
+
+class Pace_new {
+
+	//time
+	double time;
+	//objects coordinates
+	vector< coordin > objectCoord;
+	//contact points
+	vector< contact_pnts > contact_points;
+	
+	
+public:
+	typedef rw::common::Ptr<Pace_new> Ptr;
+	//Constructor
+	Pace_new();
+	Pace_new(double _time, vector< coordin > _objectCoord, vector< contact_pnts > _contact_points);
+	void printPace_new();
+	
+	friend ostream& operator<<(ostream& os, const Pace_new& pace_new); 
+};
+
+
+class Pace {
+
+	//time
+	double time;
+	//robot config
+	Q robotConfig;
+	//gripper config
+	Q gripperConfig;
+	//object poses
+	vector< pair< int, Transform3D<> > > objectPoses;
+	//object contacts {[id id #ofPoints points ...]} TODO
+	
+public:
+	Pace();
+	Pace(double _time, Q _robotConfig, Q _gripperConfig, vector<pair<int, Transform3D<> > > _objectPoses);
+	double Time();
+	Q RobotConfig();
+	Q GripperConfig();
+	void printPace();
+	
+	Pace_new::Ptr Proc();
+	Pace_new::Ptr Proc_0();
+	Pace_new::Ptr Proc_1();
+	
+	Pace_coord::Ptr Proc_glob();
+	Pace_coord::Ptr Proc_loc(int i ); // i locates the object number in the sequence
+	Pace_z::Ptr Proc_loc_z(int i ); // i locates the object number in the sequence + z vector
+	Pace_cnct::Ptr Proc_cnct();
+		
+	friend ostream& operator<<(ostream& os, const Pace& pace);
+	friend istream& operator>>(istream& is, Pace& pace);
+};
+//******************************** Reader *************************//
+
+class Reader {
+	ifstream currentFile;
+public:
+	vector<Pace *> readAllFile(string filename);	
+	//vector<Pace *> readFile_1();	
+	Reader(string filename);
+	bool openFile(string filename);
+	Pace * readNext();
+	void closeFile();
+};
+
+//************************* Recorders ***************************************//
+
+class Recorder {
+	vector<Pace *> paces;
+public:
+	void addPace(Pace *pace);
+	//void addPace_new(Pace_new *pace_new);
+	void save(string filename);
+};
+
+class Recorder_new {
+	vector<Pace_new::Ptr> paces;
+public:
+	void addPace_new(Pace_new::Ptr pace_new);
+	//void addPace_new(Pace_new *pace_new);
+	void save_new(string filename);
+};
+
+class Recorder_coord {
+	vector<Pace_coord::Ptr> paces;
+public:
+	void addPace_coord(Pace_coord::Ptr pace_new);
+	//void addPace_new(Pace_new *pace_new);
+	void save_coord(string filename);
+};
+
+class Recorder_z {
+	vector<Pace_z::Ptr> paces;
+public:
+	void addPace_z(Pace_z::Ptr pace_new);
+	//void addPace_new(Pace_new *pace_new);
+	void save_z(string filename);
+};
+
+
+class Recorder_cnct {
+	vector<Pace_cnct::Ptr> paces;
+public:
+	void addPace_cnct(Pace_cnct::Ptr pace_new);
+	//void addPace_new(Pace_new *pace_new);
+	void save_cnct(string filename);
+};
+
+#endif

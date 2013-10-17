@@ -1,0 +1,15 @@
+[Buildset]
+BuildItems=@Variant(\x00\x00\x00\t\x00\x00\x00\x00\x01\x00\x00\x00\x0b\x00\x00\x00\x00\x01\x00\x00\x00\x10\x00D\x00a\x00t\x00a\x00P\x00r\x00o\x00c)
+
+[CMake]
+BuildDirs[$e]=$HOME/workspace/DataProc/build,$HOME/workspace/DataProc/build/debug
+CMakeDir=/usr/share/cmake-2.8/Modules
+Current CMake Binary=file:///usr/bin/cmake
+CurrentBuildDir=file:///home/nadezda/workspace/DataProc/build/debug
+CurrentBuildType=Debug
+CurrentInstallDir=
+Extra Arguments=
+ProjectRootRelative=./
+
+[MakeBuilder]
+Number Of Jobs=5

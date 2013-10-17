@@ -1,0 +1,844 @@
+#include "InOut.hpp"
+#include <llimits.h>
+
+
+string RPYtoString(const RPY<>& rpy)
+{
+  stringstream ss;
+  ss << rpy(0) << ' ' << rpy(1) << ' ' << rpy(2);
+   //return os <<"RPY {"<<rpy(0)<<", "<<rpy(1)<<", "<<rpy(2)<<"}";
+  return ss.str();
+}
+
+string XYZtoString(const Vector3D<>& xyz)
+{
+  stringstream ss;
+  ss << xyz(0) << ' ' << xyz(1) << ' ' << xyz(2);
+   //return os <<"RPY {"<<rpy(0)<<", "<<rpy(1)<<", "<<rpy(2)<<"}";
+  return ss.str();
+}
+
+
+/**************************    Pace    **************************/
+Pace::Pace() {
+	
+}
+
+Pace::Pace(double _time, Q _robotConfig, Q _gripperConfig, vector< pair< int, Transform3D<> > > _objectPoses){
+	time = _time;
+	robotConfig = _robotConfig;
+	gripperConfig = _gripperConfig;
+	objectPoses = _objectPoses;
+}
+
+double Pace::Time() {
+	double time1 = time;
+	return time1;
+}
+
+Q Pace::RobotConfig(){
+	Q robotConfig1 = robotConfig;
+	return robotConfig1;
+}
+
+
+Q Pace::GripperConfig() {
+	Q gripperConfig1 = gripperConfig;
+	return gripperConfig1;
+}
+
+void Pace::printPace() {
+	std::cout << time << std::endl;
+	std::cout << robotConfig << std::endl;
+	std::cout << gripperConfig << std::endl;
+	for(int i = 0 ; i < objectPoses.size() ; i++)
+	{
+		std::cout << " " <<objectPoses[i].first << " " << objectPoses[i].second;
+	}
+	//std::cout << objectPoses << std::endl;
+}
+
+	
+ostream& operator<<(ostream& os, const Pace& pace) {
+	os << pace.time << ":" << pace.robotConfig << ":" << pace.gripperConfig << ":" << pace.objectPoses.size() ;
+	
+	for(int i = 0 ; i < pace.objectPoses.size() ; i++)
+	{
+		os << " " <<pace.objectPoses[i].first << " " << pace.objectPoses[i].second;
+	}
+	
+	/* 	to write contact points
+	os << ":" << pace.contactPoints.size();
+	
+	for (int i = 0; i < contactPoints.size(); ++i)
+		os << " " << pace.contactPoints[i].p; //write contact point in the structure you wish 
+	*/
+	
+	return os;
+}
+
+istream& operator>>(istream& is, Transform3D<> &t) {
+
+	double p1, p2, p3, r1, r2, r3, r4, r5, r6, r7, r8, r9;
+	char c;
+	
+	do {
+		is.get(c);
+	} while (c == ' ' || c == '\t' );
+	
+	
+	//read Transform3D
+	is >> c;
+	while ( c != '(' ) {
+		is >> c;
+	}
+	
+	//read Vector3D
+	is >> c;
+	while ( c != '(' )
+		is >> c;
+	is >> p1 >> c >> p2 >> c >> p3;
+	
+	//read Rotation3D
+	is >> c;
+	while ( c != '(' )
+		is >> c;	
+	is >> r1 >> c >> r2 >> c >> r3 >> c >> r4 >> c >> r5 >> c >> r6 >> c >> r7 >> c >> r8 >> c >> r9;
+	
+	t = Transform3D<>(Vector3D<>(p1, p2, p3), Rotation3D<>(r1, r2, r3, r4, r5, r6, r7, r8, r9));
+
+	return is >> c >> c;
+}
+
+
+istream& operator>>(istream& is, Pace& pace) {
+	//TODO
+	char c;
+	int objectPosesCount;
+	is >> pace.time >> c; 
+	is >> pace.robotConfig >> c >> pace.gripperConfig >> c>> objectPosesCount;
+	pace.objectPoses.clear();
+	
+	for(int i = 0 ; i < objectPosesCount ; i++)
+	{
+		int id;
+		Transform3D<> coor;
+		
+		is >> id;
+		is >> coor;
+		pace.objectPoses.push_back(make_pair(id,coor));
+	}
+	
+	/* to read the contact points from file
+	int contactPointsCount;
+	is >> contactPointsCount;
+	for(int i = 0; i < contactPointsCount; ++i)
+	{
+		//TODO parse the contact point structure here
+	}
+	*/
+	
+	return is ;
+}
+
+Pace_new::Ptr Pace::Proc() {
+		
+	//contact_pnts contact_points();
+	int id_eef, id_obj, id_belt, id_table, id_box;
+	Transform3D<> coord_eef, coord_obj, coord_belt, coord_table, coord_box; 
+	Transform3D<> coord_obj_loc, coord_obj_belt;	
+	// assume first object is rotor cap - the object; so all relative coords are of that object
+	
+	//object id and coordin
+	id_obj = objectPoses[0].first;
+	coord_obj = objectPoses[0].second;
+		
+	//Now i want to make a loop out of this calculation
+	vector< coordin > objectCoord;
+	vector< contact_pnts > contact_points;
+	for(int i = 0 ; i < objectPoses.size() ; i++)
+	{
+		int id = objectPoses[i].first ;
+		Transform3D<> coord = objectPoses[i].second;
+		Transform3D<> coord_obj_loc = inverse(coord)*coord_obj;
+		//objects in local cartezian xyz with respect to end-effector coordinates
+		Vector3D<> XYZ_loc = coord_obj_loc.P();  
+		//objects in local rpy with respect to end-effector coordinates
+		//Transform3D<> rot_loc = coord_obj_loc.R();
+		RPY<> RPY_loc(coord_obj_loc.R()); 
+		// objects in global cartezian xyz  coordinates
+		Vector3D<> XYZ_glob = coord.P();  
+		// objects in global rpy  coordinates
+		//Transform3D<> rot = coord.R();
+		RPY<> RPY_glob(coord.R());
+		coordin coordin_obj(id,  XYZ_loc, RPY_loc, XYZ_glob, RPY_glob);
+		objectCoord.push_back(coordin_obj);
+	  //std::cout << " " <<objectPoses[i].first << " " << objectPoses[i].second;
+	}
+		
+	Pace_new::Ptr pointer = rw::common::ownedPtr(new Pace_new(time, objectCoord, contact_points));
+	return pointer;
+}
+
+Pace_new::Ptr Pace::Proc_0() {
+		
+	//contact_pnts contact_points();
+	int id_eef, id_obj, id_belt, id_table, id_box;
+	Transform3D<> coord_eef, coord_obj, coord_belt, coord_table, coord_box; 
+	Transform3D<> coord_obj_loc, coord_obj_belt;	
+	// assume first object is rotor cap - the object; so all relative coords are of that object
+
+	//object id and coordin
+	id_obj = objectPoses[0].first;
+	coord_obj = objectPoses[0].second;
+
+	
+	//Now i want to make a loop out of this calculation
+	vector< coordin > objectCoord;
+	//vector< contact_pnts > contact_points;
+	for(int i = 0 ; i < objectPoses.size() ; i++)
+	{
+		int id = objectPoses[i].first ;
+		Transform3D<> coord = objectPoses[i].second;
+		Transform3D<> coord_obj_loc = inverse(coord)*coord_obj;
+		//objects in local cartezian xyz with respect to end-effector coordinates
+		Vector3D<> XYZ_loc = coord_obj_loc.P();  
+		//objects in local rpy with respect to end-effector coordinates
+		//Transform3D<> rot_loc = coord_obj_loc.R();
+		RPY<> RPY_loc(coord_obj_loc.R()); 
+		// objects in global cartezian xyz  coordinates
+		Vector3D<> XYZ_glob = coord.P();  
+		// objects in global rpy  coordinates
+		//Transform3D<> rot = coord.R();
+		RPY<> RPY_glob(coord.R());
+		coordin coordin_obj(id,  XYZ_loc, RPY_loc, XYZ_glob, RPY_glob);
+		objectCoord.push_back(coordin_obj);
+	  //std::cout << " " <<objectPoses[i].first << " " << objectPoses[i].second;
+	}
+	
+	vector< contact_pnts > contact_points;
+	contact_pnts contact1(objectPoses[0].first,objectPoses[1].first);
+	contact_pnts contact2(objectPoses[2].first,objectPoses[3].first);
+	 contact_points.push_back(contact1);	
+	 contact_points.push_back(contact2);
+	 
+	Pace_new::Ptr pointer = rw::common::ownedPtr(new Pace_new(time, objectCoord, contact_points));
+	return pointer;
+}
+
+Pace_new::Ptr Pace::Proc_1() {
+		
+	//contact_pnts contact_points();
+	int id_eef, id_obj, id_belt, id_table, id_box;
+	Transform3D<> coord_eef, coord_obj, coord_belt, coord_table, coord_box; 
+	Transform3D<> coord_obj_loc, coord_obj_belt;	
+	// assume first object is rotor cap - the object; so all relative coords are of that object
+
+	//object id and coordin
+	id_obj = objectPoses[0].first;
+	coord_obj = objectPoses[0].second;
+
+	
+	//Now i want to make a loop out of this calculation
+	vector< coordin > objectCoord;
+	//vector< contact_pnts > contact_points;
+	for(int i = 0 ; i < objectPoses.size() ; i++)
+	{
+		int id = objectPoses[i].first ;
+		Transform3D<> coord = objectPoses[i].second;
+		Transform3D<> coord_obj_loc = inverse(coord)*coord_obj;
+		//objects in local cartezian xyz with respect to end-effector coordinates
+		Vector3D<> XYZ_loc = coord_obj_loc.P();  
+		//objects in local rpy with respect to end-effector coordinates
+		//Transform3D<> rot_loc = coord_obj_loc.R();
+		RPY<> RPY_loc(coord_obj_loc.R()); 
+		// objects in global cartezian xyz  coordinates
+		Vector3D<> XYZ_glob = coord.P();  
+		// objects in global rpy  coordinates
+		//Transform3D<> rot = coord.R();
+		RPY<> RPY_glob(coord.R());
+		coordin coordin_obj(id,  XYZ_loc, RPY_loc, XYZ_glob, RPY_glob);
+		objectCoord.push_back(coordin_obj);
+	  //std::cout << " " <<objectPoses[i].first << " " << objectPoses[i].second;
+	}
+	
+	vector< contact_pnts > contact_points;
+	contact_pnts contact1(objectPoses[0].first,objectPoses[1].first);
+	//contact_pnts contact2(objectPoses[2].first,objectPoses[3].first);
+	 contact_points.push_back(contact1);	
+	 //contact_points.push_back(contact2);
+	 
+	Pace_new::Ptr pointer = rw::common::ownedPtr(new Pace_new(time, objectCoord, contact_points));
+	return pointer;
+}
+
+
+Pace_cnct::Ptr Pace::Proc_cnct() {
+		
+	/* THERE SHOULD BE A LOOP HERE, BUT THERE IS NO CONTACT POINTS IN PACES FOR NOW
+	//Now i want to make a loop out of this calculation
+	vector< coordin > objectCoord;
+	vector< contact_pnts > contact_points;
+	for(int i = 0 ; i < objectPoses.size() ; i++)
+	{
+		int id = objectPoses[i].first ;
+		Transform3D<> coord = objectPoses[i].second;
+		Transform3D<> coord_obj_loc = inverse(coord)*coord_obj;
+		//objects in local cartezian xyz with respect to end-effector coordinates
+		Vector3D<> XYZ_loc = coord_obj_loc.P();  
+		//objects in local rpy with respect to end-effector coordinates
+		//Transform3D<> rot_loc = coord_obj_loc.R();
+		RPY<> RPY_loc(coord_obj_loc.R()); 
+		// objects in global cartezian xyz  coordinates
+		Vector3D<> XYZ_glob = coord.P();  
+		// objects in global rpy  coordinates
+		//Transform3D<> rot = coord.R();
+		RPY<> RPY_glob(coord.R());
+		coordin coordin_obj(id,  XYZ_loc, RPY_loc, XYZ_glob, RPY_glob);
+		objectCoord.push_back(coordin_obj);
+	  //std::cout << " " <<objectPoses[i].first << " " << objectPoses[i].second;
+	}
+	*/
+	
+	vector< contact_pnts > contact_points;
+	contact_pnts contact1(objectPoses[0].first,objectPoses[1].first);
+	contact_pnts contact2(objectPoses[2].first,objectPoses[3].first);
+	 contact_points.push_back(contact1);	
+	 contact_points.push_back(contact2);
+		
+	Pace_cnct::Ptr pointer = rw::common::ownedPtr(new Pace_cnct(time, contact_points));
+	return pointer;
+}
+	
+Pace_coord::Ptr Pace::Proc_loc(int i) {
+		
+	//contact_pnts contact_points();
+	int id_eef, id_obj, id_belt, id_table, id_box;
+	Transform3D<> coord_eef, coord_obj, coord_belt, coord_table, coord_box; 
+	Transform3D<> coord_obj_loc, coord_obj_belt;	
+	// assume first object is rotor cap1 - the object; second object is rotor cap2
+	
+	//object id and coordin
+	id_obj = objectPoses[i].first;
+	coord_obj = objectPoses[i].second;
+		
+	//Now i want to make a loop out of this calculation
+	vector< coordin_simple > objectCoord;
+	vector< contact_pnts > contact_points;
+	for(int i = 0 ; i < objectPoses.size() ; i++)
+	{
+		int id = objectPoses[i].first ;
+		Transform3D<> coord = objectPoses[i].second;
+		Transform3D<> coord_obj_loc = inverse(coord)*coord_obj;
+		//objects in local cartezian xyz with respect to end-effector coordinates
+		Vector3D<> XYZ_loc = coord_obj_loc.P();  
+		//objects in local rpy with respect to end-effector coordinates
+		//Transform3D<> rot_loc = coord_obj_loc.R();
+		RPY<> RPY_loc(coord_obj_loc.R()); 
+		coordin_simple coordin_obj(id,  XYZ_loc, RPY_loc);
+		objectCoord.push_back(coordin_obj);
+	  //std::cout << " " <<objectPoses[i].first << " " << objectPoses[i].second;
+	}
+	
+	Pace_coord::Ptr pointer = rw::common::ownedPtr(new Pace_coord(time, objectCoord));
+	return pointer;		
+}
+
+Pace_coord::Ptr Pace::Proc_glob() {
+		
+	vector< coordin_simple > objectCoord;
+	vector< contact_pnts > contact_points;
+	for(int i = 0 ; i < objectPoses.size() ; i++)
+	{
+		int id = objectPoses[i].first ;
+		Transform3D<> coord = objectPoses[i].second;
+		// objects in global cartezian xyz  coordinates
+		Vector3D<> XYZ_glob = coord.P();  
+		// objects in global rpy  coordinates
+		//Transform3D<> rot = coord.R();
+		RPY<> RPY_glob(coord.R());
+		coordin_simple coordin_obj(id, XYZ_glob, RPY_glob);
+		objectCoord.push_back(coordin_obj);
+	}
+		
+	Pace_coord::Ptr pointer = rw::common::ownedPtr(new Pace_coord(time, objectCoord));
+	return pointer;
+}	
+	
+Pace_z::Ptr Pace::Proc_loc_z(int i) {
+		
+	//contact_pnts contact_points();
+	int id_eef, id_obj, id_belt, id_table, id_box;
+	Transform3D<> coord_eef, coord_obj, coord_belt, coord_table, coord_box; 
+	Transform3D<> coord_obj_loc, coord_obj_belt;	
+	// assume first object is rotor cap1 - the object; second object is rotor cap2
+	
+	//object id and coordin
+	id_obj = objectPoses[i].first;
+	coord_obj = objectPoses[i].second;
+		
+	//Now i want to make a loop out of this calculation
+	vector< coordin_simple > objectCoord;
+	vector< contact_pnts > contact_points;
+	for(int i = 0 ; i < objectPoses.size() ; i++)
+	{
+		int id = objectPoses[i].first ;
+		Transform3D<> coord = objectPoses[i].second;
+		Transform3D<> coord_obj_loc = inverse(coord)*coord_obj;
+		//objects in local cartezian xyz with respect to end-effector coordinates
+		Vector3D<> XYZ_loc = coord_obj_loc.P();  
+		//objects in local rpy with respect to end-effector coordinates
+		//Transform3D<> rot_loc = coord_obj_loc.R();
+		RPY<> RPY_loc(coord_obj_loc.R()); 
+		coordin_simple coordin_obj(id,  XYZ_loc, RPY_loc);
+		objectCoord.push_back(coordin_obj);
+	  //std::cout << " " <<objectPoses[i].first << " " << objectPoses[i].second;
+	}
+	
+	Vector3D<> zAxis = inverse(coord_obj)*Vector3D<>(0,0,1);
+	
+	Pace_z::Ptr pointer = rw::common::ownedPtr(new Pace_z(time, objectCoord, zAxis));
+	return pointer;		
+}
+
+
+/**************************    Pace_new    **************************/
+
+Pace_new::Pace_new(){
+
+}
+
+Pace_new::Pace_new(double _time, vector< coordin > _objectCoord, vector< contact_pnts > _contact_points){
+	time = _time;
+	objectCoord = _objectCoord;
+	contact_points = _contact_points;
+}
+
+void Pace_new::printPace_new() {
+	std::cout << "time" << time << std::endl;
+	
+	for(int i = 0 ; i < objectCoord.size() ; i++)
+	{
+		//std::cout << " " <<objectCoord[i].first << " " << objectPoses[i].second;
+		objectCoord[i].PrintCoordin();
+	}
+	
+	//std::cout << "contact_points"<< contact_points << std::endl;
+	for(int i = 0 ; i < contact_points.size() ; i++)
+	{
+		//std::cout << " " <<objectPoses[i].first << " " << objectPoses[i].second;
+		contact_points[i].PrintContPnts();
+	}
+}
+
+ostream& operator<<(ostream& os, const Pace_new& pace_new) {
+	/*os << pace_new.time << ":" << pace_new.robotConfig << ":" << pace_new.gripperConfig << ":" << pace_new.objectPoses.size() ;
+	
+	for(int i = 0 ; i < pace_new.objectPoses.size() ; i++)
+	{
+		os << " " <<pace_new.objectPoses[i].first << " " << pace_new.objectPoses[i].second;
+	}*/
+	
+	os << pace_new.time << " "; // << pace_new.objectCoord <<  ":" << pace_new.contact_points;
+	
+	for(int i = 0 ; i <  pace_new.objectCoord.size() ; i++)
+	{
+		os << " " << pace_new.objectCoord[i];
+		//objectCoord[i].PrintCoordin();
+	}
+	
+	//std::cout << "contact_points"<< contact_points << std::endl;
+	for(int i = 0 ; i <  pace_new.contact_points.size() ; i++)
+	{
+		os << " " << pace_new.contact_points[i];
+		//contact_points[i].PrintContPnts();
+	}
+	
+	return os;
+}
+
+/**************************    Pace_coord    **************************/
+
+Pace_coord::Pace_coord(){
+
+}
+
+Pace_coord::Pace_coord(double _time, vector< coordin_simple > _objectCoord){
+	time = _time;
+	objectCoord = _objectCoord;
+}
+
+void Pace_coord::printPace_coord() {
+	std::cout << "time" << time << std::endl;
+	
+	for(int i = 0 ; i < objectCoord.size() ; i++)
+	{
+		//std::cout << " " <<objectCoord[i].first << " " << objectPoses[i].second;
+		objectCoord[i].PrintCoordin_simple();
+	}
+}
+
+ostream& operator<<(ostream& os, const Pace_coord& pace_new) {
+	
+	os << pace_new.time << " "; // << pace_new.objectCoord <<  ":" << pace_new.contact_points;
+	
+	for(int i = 0 ; i <  pace_new.objectCoord.size() ; i++)
+	{
+		os << " " << pace_new.objectCoord[i];
+		//objectCoord[i].PrintCoordin();
+	}
+	
+	return os;
+}
+
+/**************************    Pace_cnct    **************************/
+
+Pace_cnct::Pace_cnct(){
+
+}
+
+Pace_cnct::Pace_cnct(double _time, vector< contact_pnts > _contact_points){
+	time = _time;
+	contact_points = _contact_points;
+}
+
+void Pace_cnct::printPace_cnct() {
+	std::cout << "time" << time << std::endl;
+		
+	//std::cout << "contact_points"<< contact_points << std::endl;
+	for(int i = 0 ; i < contact_points.size() ; i++)
+	{
+		//std::cout << " " <<objectPoses[i].first << " " << objectPoses[i].second;
+		contact_points[i].PrintContPnts();
+	}
+}
+
+ostream& operator<<(ostream& os, const Pace_cnct& pace_new) {
+		
+	os << pace_new.time << " "; // << pace_new.objectCoord <<  ":" << pace_new.contact_points;
+	
+	
+	//std::cout << "contact_points"<< contact_points << std::endl;
+	for(int i = 0 ; i <  pace_new.contact_points.size() ; i++)
+	{
+		os << " " << pace_new.contact_points[i];
+		//contact_points[i].PrintContPnts();
+	}
+	
+	return os;
+}
+
+/**************************    Pace_z    **************************/
+
+Pace_z::Pace_z(){
+
+}
+
+Pace_z::Pace_z(double _time, vector< coordin_simple > _objectCoord, Vector3D<> _zAxis){
+	time = _time;
+	objectCoord = _objectCoord;
+	zAxis = _zAxis;
+}
+
+void Pace_z::printPace_z() {
+	std::cout << "time" << time << std::endl;
+	
+	for(int i = 0 ; i < objectCoord.size() ; i++)
+	{
+		//std::cout << " " <<objectCoord[i].first << " " << objectPoses[i].second;
+		objectCoord[i].PrintCoordin_simple();
+	}
+	
+	std::cout << "z" << zAxis << std::endl;
+}
+
+ostream& operator<<(ostream& os, const Pace_z& pace_new) {
+	
+	os << pace_new.time << " "; // << pace_new.objectCoord <<  ":" << pace_new.contact_points;
+	
+	for(int i = 0 ; i <  pace_new.objectCoord.size() ; i++)
+	{
+		os << " " << pace_new.objectCoord[i];
+		//objectCoord[i].PrintCoordin();
+	}
+	
+	os << " " << XYZtoString(pace_new.zAxis);
+	
+	return os;
+}
+
+/**************************    coordin    **************************/
+
+coordin::coordin() {
+	id = 0;
+	//objects in local cartezian xyz with respect to end-effector coordinates
+	XYZ_loc = Vector3D<>(0,0,0); 
+	//objects in local rpy with respect to end-effector coordinates
+	RPY_loc = RPY<>(0,0,0);
+	// objects in global cartezian xyz  coordinates
+	XYZ_glob = Vector3D<>(0,0,0);  
+	// objects in global rpy  coordinates
+	RPY_glob = RPY<>(0,0,0);
+	
+}
+
+coordin::coordin(int _id,  Vector3D<> _XYZ_loc, RPY<> _RPY_loc, Vector3D<> _XYZ_glob, RPY<> _RPY_glob) {
+	id = _id;
+	//objects in local cartezian xyz with respect to end-effector coordinates
+	XYZ_loc = _XYZ_loc; 
+	//objects in local rpy with respect to end-effector coordinates
+	RPY_loc = _RPY_loc;
+	// objects in global cartezian xyz  coordinates
+	XYZ_glob = _XYZ_glob;  
+	// objects in global rpy  coordinates
+	RPY_glob = _RPY_glob;
+	
+}
+
+void coordin::PrintCoordin() {
+	
+	std::cout << "frame id" << id << std::endl;
+	std::cout << "manipulated object in local coord xyz" << XYZ_loc << std::endl;
+	std::cout << "manipulated object in local coord rpy" << RPY_loc << std::endl;
+	std::cout << "this object global coord xyz" <<  XYZ_glob << std::endl;
+	std::cout << "this object global coord rpy" <<  RPY_glob << std::endl;
+}
+
+ostream& operator<<(ostream& os, const coordin& coordin) {
+	//os << coordin.id << ":" << XYZtoString(coordin.XYZ_loc) << ":" << RPYtoString(coordin.RPY_loc) << ":" << XYZtoString(coordin.XYZ_glob) << ":" << RPYtoString(coordin.RPY_glob);
+	os << coordin.id << " " << XYZtoString(coordin.XYZ_loc) << " " << RPYtoString(coordin.RPY_loc) << " " << XYZtoString(coordin.XYZ_glob) << " " << RPYtoString(coordin.RPY_glob);
+	
+}
+
+/**************************    coordin_simple    **************************/
+
+coordin_simple::coordin_simple() {
+	id = 0;
+	//objects in local cartezian xyz with respect to end-effector coordinates
+	XYZ = Vector3D<>(0,0,0); 
+	//objects in local rpy with respect to end-effector coordinates
+	RPY1 = RPY<>(0,0,0);	
+}
+
+coordin_simple::coordin_simple(int _id,  Vector3D<> _XYZ, RPY<> _RPY) {
+	id = _id;
+	//objects in local cartezian xyz with respect to end-effector coordinates
+	XYZ = _XYZ; 
+	//objects in local rpy with respect to end-effector coordinates
+	RPY1 = _RPY;
+	
+}
+
+void coordin_simple::PrintCoordin_simple() {
+	std::cout << "frame id" << id << std::endl;
+	std::cout << "xyz" << XYZ << std::endl;
+	std::cout << "rpy" << RPY1 << std::endl;
+}
+
+ostream& operator<<(ostream& os, const coordin_simple& coordin) {
+	os << coordin.id << " " << XYZtoString(coordin.XYZ) << " " << RPYtoString(coordin.RPY1);
+	
+}
+
+
+/**************************    contact_pnts   **************************/
+contact_pnts::contact_pnts() {
+	//int id1, id2;
+	id1 = 0;
+	id2 = 0;
+}
+
+contact_pnts::contact_pnts(int _id1, int _id2) {
+	//int id1, id2;
+	id1 = _id1;
+	id2 = _id2;
+}
+
+void contact_pnts::PrintContPnts() {
+	// print out contact points
+	std::cout << "id1" << id1 << std::endl;
+	std::cout << "id2" << id2 << std::endl;
+}
+
+ostream& operator<<(ostream& os, const contact_pnts& contact_pnts) {
+	os << contact_pnts.id1 << " " << contact_pnts.id2;
+}
+
+/**************************    Recorder    **************************/
+void Recorder::addPace(Pace *pace) {
+	paces.push_back(pace);
+}
+/*
+void  Recorder::addPace_new(Pace_new *pace_new) {
+	paces.push_back(pace_new);
+}
+*/
+void Recorder::save(string filename) {
+	ofstream fout;
+	fout.open(filename.c_str());
+	
+	for (vector<Pace *>::iterator it = paces.begin(); it != paces.end(); ++it) {
+		fout << **it << endl;
+		delete *it;
+	}
+		
+	fout.close();
+	paces.clear();
+}
+
+/**************************    Recorder_new    **************************/
+void Recorder_new::addPace_new(Pace_new::Ptr pace_new) {
+	paces.push_back(pace_new);
+}
+/*
+void  Recorder::addPace_new(Pace_new *pace_new) {
+	paces.push_back(pace_new);
+}
+*/
+void Recorder_new::save_new(string filename) {
+	ofstream fout;
+	fout.open(filename.c_str());
+	
+	for (vector<Pace_new::Ptr >::iterator it = paces.begin(); it != paces.end(); ++it) {
+		fout << **it << endl;
+		//delete *it;
+	}
+		
+	fout.close();
+	paces.clear();
+}
+
+/**************************    Recorder_coord    **************************/
+
+void Recorder_coord::addPace_coord(Pace_coord::Ptr pace_new) {
+	paces.push_back(pace_new);
+}
+
+void Recorder_coord::save_coord(string filename) {
+	ofstream fout;
+	fout.open(filename.c_str());
+	
+	for (vector<Pace_coord::Ptr >::iterator it = paces.begin(); it != paces.end(); ++it) {
+		fout << **it << endl;
+		//delete *it;
+	}
+		
+	fout.close();
+	paces.clear();
+}
+
+/**************************    Recorder_z   **************************/
+
+void Recorder_z::addPace_z(Pace_z::Ptr pace_new) {
+	paces.push_back(pace_new);
+}
+
+void Recorder_z::save_z(string filename) {
+	ofstream fout;
+	fout.open(filename.c_str());
+	
+	for (vector<Pace_z::Ptr >::iterator it = paces.begin(); it != paces.end(); ++it) {
+		fout << **it << endl;
+		//delete *it;
+	}
+		
+	fout.close();
+	paces.clear();
+}
+
+/**************************    Recorder_cnct    **************************/
+
+void Recorder_cnct::addPace_cnct(Pace_cnct::Ptr pace_new) {
+	paces.push_back(pace_new);
+}
+
+void Recorder_cnct::save_cnct(string filename) {
+	ofstream fout;
+	fout.open(filename.c_str());
+	
+	for (vector<Pace_cnct::Ptr >::iterator it = paces.begin(); it != paces.end(); ++it) {
+		fout << **it << endl;
+		//delete *it;
+	}
+		
+	fout.close();
+	paces.clear();
+}
+
+/**************************    Reader    **************************/
+Reader::Reader(string filename) {
+	openFile(filename);
+}
+
+bool Reader::openFile(string filename) {
+	if (currentFile.is_open())
+		currentFile.close();
+		
+	currentFile.open(filename.c_str());
+}
+
+Pace * Reader::readNext() {
+	static stringstream ss;
+	static string line;
+	
+	//while( getline(currentFile, line)  && line[0] == '#' );
+	if (!getline(currentFile, line)) return NULL;
+
+	// make sure there is a line with pace
+	//if (line[0] != '#') {
+	
+		// clear the stream
+		ss.str( string() );
+		ss.clear();
+		
+		ss << line;
+		
+		Pace *pace = new Pace();
+		ss >> *pace;
+		
+		return pace;
+	//}
+
+	//return NULL;
+}
+
+void Reader::closeFile() {
+	currentFile.close();
+}
+
+vector<Pace *> Reader::readAllFile(string filename) {
+	vector<Pace *> paces;
+	Pace *pace;
+	
+	openFile(filename);
+	
+	while ( (pace = readNext()) != NULL )
+		paces.push_back(pace);
+	
+	closeFile();
+	
+	return paces;
+}
+/*
+vector<Pace *> Reader::readFile_1() {
+	
+	vector<Pace *> fail1[2];
+	
+	//currentFile
+	
+	static stringstream ss;
+	static string line;
+	Pace* pace;
+	int i = 0;
+	while( (pace = readNext()) != NULL && i < 2);
+
+		fail1[i] = pace; //.push_back(pace); //[i] = pace;
+		i = i +1;
+	}
+	
+	//fail1[0] = currentFile.readNext();
+	//fail1[1] = currentFile.readNext();
+	
+	return NULL;
+}
+*/
